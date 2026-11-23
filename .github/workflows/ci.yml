@@ -25,6 +25,29 @@ jobs:
         run: go vet ./...
       - name: Unit tests
         run: go test -race ./...
+      - name: Spec tooling tests
+        working-directory: tools
+        run: go test ./...
+
+  integration:
+    name: Integration (DevLake + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Start DevLake
+        run: make devlake-up
+      - name: Integration tests
+        run: make test-integration
+      - name: DevLake logs
+        if: failure()
+        run: DEVLAKE_VERSION=$(cat spec/DEVLAKE_VERSION) docker compose -f integration/docker-compose.yml logs devlake | tail -300
+      - name: Stop DevLake
+        if: always()
+        run: make devlake-down
 
   generated:
     name: Generated code is up to date
@@ -52,3 +75,4 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           version: latest
+          args: --build-tags integration

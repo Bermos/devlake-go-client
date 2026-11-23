@@ -5,21 +5,83 @@
         "description": "OK",
         "schema": {
           "type": "object",
-          "properties": {"version": {"type": "string"}}
+          "properties": {
+            "version": {
+              "type": "string"
+            }
+          }
         }
       }
     }
   },
   "get /ready": {
     "responses": {
-      "200": {"description": "OK", "schema": {"$ref": "#/definitions/shared.ApiBody"}},
-      "500": {"description": "Internal Error", "schema": {"$ref": "#/definitions/shared.ApiBody"}}
+      "200": {
+        "description": "OK",
+        "schema": {
+          "$ref": "#/definitions/shared.ApiBody"
+        }
+      },
+      "500": {
+        "description": "Internal Error",
+        "schema": {
+          "$ref": "#/definitions/shared.ApiBody"
+        }
+      }
     }
   },
   "get /health": {
     "responses": {
-      "200": {"description": "OK", "schema": {"$ref": "#/definitions/shared.ApiBody"}},
-      "500": {"description": "Internal Error", "schema": {"$ref": "#/definitions/shared.ApiBody"}}
+      "200": {
+        "description": "OK",
+        "schema": {
+          "$ref": "#/definitions/shared.ApiBody"
+        }
+      },
+      "500": {
+        "description": "Internal Error",
+        "schema": {
+          "$ref": "#/definitions/shared.ApiBody"
+        }
+      }
     }
+  },
+  "patch /blueprints/{blueprintId}": {
+    "parameters": [
+      {
+        "name": "blueprintId",
+        "in": "path",
+        "required": true,
+        "type": "integer"
+      },
+      {
+        "name": "body",
+        "in": "body",
+        "required": true,
+        "description": "fields to update (partial blueprint)",
+        "schema": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    ]
+  },
+  "#/definitions/models.BaseMetric/properties/pluginOption": {
+    "description": "plugin specific options (raw JSON)",
+    "type": "object",
+    "additionalProperties": true
+  },
+  "#/definitions/models.Blueprint/properties/id": {
+    "type": "integer"
+  },
+  "#/definitions/models.Blueprint/properties/createdAt": {
+    "type": "string"
+  },
+  "#/definitions/models.Blueprint/properties/updatedAt": {
+    "type": "string"
+  },
+  "#/definitions/common.Iso8601Time": {
+    "type": "string",
+    "description": "timestamp serialized by DevLake, e.g. 2006-01-02T15:04:05-0700; parse with devlake.ParseTime"
   }
 }

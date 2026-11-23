@@ -96,6 +96,10 @@ func Prepare(raw []byte, version string, overrides map[string]obj) ([]byte, erro
 		return nil, fmt.Errorf("decode swagger: %w", err)
 	}
 
+	if err := applySchemaOverrides(sw, overrides); err != nil {
+		return nil, err
+	}
+
 	paths, _ := sw["paths"].(obj)
 	cleaned := mergePaths(paths)
 
@@ -108,7 +112,7 @@ func Prepare(raw []byte, version string, overrides map[string]obj) ([]byte, erro
 				continue
 			}
 			fixParams(p, op)
-			fixResponses(op, hasDefinition(sw, "shared.ApiBody"))
+			fixResponses(m, op)
 			if ov, ok := overrides[m+" "+p]; ok {
 				for k, v := range ov {
 					op[k] = v
@@ -129,6 +133,14 @@ func Prepare(raw []byte, version string, overrides map[string]obj) ([]byte, erro
 		return nil, fmt.Errorf("overrides for unknown operations: %v", sortedKeys(overrides))
 	}
 	sw["paths"] = cleaned
+	// Many handlers omit @Accept/@Produce; DevLake speaks JSON everywhere, so
+	// default to it instead of */* (which yields untyped request bodies).
+	if _, ok := sw["consumes"]; !ok {
+		sw["consumes"] = []any{"application/json"}
+	}
+	if _, ok := sw["produces"]; !ok {
+		sw["produces"] = []any{"application/json"}
+	}
 	fixDefinitions(sw)
 
 	info, _ := sw["info"].(obj)
@@ -161,32 +173,69 @@ func Prepare(raw []byte, version string, overrides map[string]obj) ([]byte, erro
 	return json.MarshalIndent(doc3, "", "  ")
 }
 
-// fixResponses makes sure every operation has a response and that error
-// responses use DevLake's real error envelope instead of a bare string.
-func fixResponses(op obj, haveAPIBody bool) {
+// applySchemaOverrides handles override keys of the form
+// "#/definitions/<name>/properties/<prop>", replacing or adding that schema. They are
+// removed from overrides so only operation overrides remain.
+func applySchemaOverrides(sw obj, overrides map[string]obj) error {
+	const prefix = "#/definitions/"
+	defs, _ := sw["definitions"].(obj)
+	for _, key := range sortedKeys(overrides) {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		parts := strings.Split(strings.TrimPrefix(key, prefix), "/")
+		var cur any = defs
+		for i, part := range parts {
+			m, ok := cur.(obj)
+			if !ok {
+				return fmt.Errorf("override %q: %q is not an object", key, strings.Join(parts[:i], "/"))
+			}
+			if i == len(parts)-1 {
+				m[part] = map[string]any(overrides[key]) // replaces or adds
+				break
+			}
+			cur = m[part]
+		}
+		delete(overrides, key)
+	}
+	return nil
+}
+
+// fixResponses makes sure every operation has a response and that
+// creations decode with either 200 or 201.
+func fixResponses(method string, op obj) {
 	rs, _ := op["responses"].(obj)
 	if len(rs) == 0 {
 		op["responses"] = obj{"200": obj{"description": "OK"}}
 		return
 	}
-	if !haveAPIBody {
-		return
+	// DevLake answers creations with 201 although handlers document 200.
+	// Mirror the 200 response so generated clients decode either.
+	if ok200, has := rs["200"]; has && (method == "post" || method == "put" || method == "patch") {
+		if _, has201 := rs["201"]; !has201 {
+			rs["201"] = ok200
+		}
 	}
+	// Error bodies are left untyped: DevLake is inconsistent about their
+	// shape (JSON envelope, bare JSON string, plain text), and a typed
+	// schema would make the generated client fail to decode them and hide
+	// the HTTP status. devlake.CheckResponse decodes them instead.
 	for code, r := range rs {
 		rr, ok := r.(obj)
-		if !ok || len(code) != 3 || code[0] < '4' {
+		if !ok || len(code) != 3 {
 			continue
 		}
-		if sc, ok := rr["schema"].(obj); ok && sc["type"] == "string" {
-			rr["schema"] = obj{"$ref": "#/definitions/shared.ApiBody"}
+		if code[0] >= '4' {
+			delete(rr, "schema")
+			continue
+		}
+		// Handlers that return nothing useful are annotated as
+		// `{string}`; DevLake actually sends an object or null. Leave those
+		// untyped too (the raw body stays available on the response).
+		if sc, ok := rr["schema"].(obj); ok && sc["type"] == "string" && len(sc) == 1 {
+			delete(rr, "schema")
 		}
 	}
-}
-
-func hasDefinition(sw obj, name string) bool {
-	defs, _ := sw["definitions"].(obj)
-	_, ok := defs[name]
-	return ok
 }
 
 // mergePaths rewrites gin style parameters, drops documentation-only paths and
