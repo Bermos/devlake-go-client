@@ -1,6 +1,6 @@
 DEVLAKE_VERSION ?= $(shell cat spec/DEVLAKE_VERSION)
 
-.PHONY: all spec normalize generate build test test-integration lint tidy
+.PHONY: all spec normalize generate build test test-integration devlake-up devlake-down lint tidy
 
 all: generate build test
 
@@ -26,7 +26,15 @@ test:
 
 ## test-integration: run against a live DevLake (DEVLAKE_URL, default http://localhost:8080)
 test-integration:
-	go test -race -tags integration -count=1 ./integration/...
+	DEVLAKE_VERSION=$(DEVLAKE_VERSION) go test -race -tags integration -count=1 ./integration/...
+
+## devlake-up: start DevLake + PostgreSQL for the integration tests
+devlake-up:
+	DEVLAKE_VERSION=$(DEVLAKE_VERSION) docker compose -f integration/docker-compose.yml up -d --wait
+
+## devlake-down: stop the integration stack and delete its data
+devlake-down:
+	DEVLAKE_VERSION=$(DEVLAKE_VERSION) docker compose -f integration/docker-compose.yml down -v
 
 lint:
 	go vet ./...

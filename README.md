@@ -62,6 +62,24 @@ DevLake only checks API keys on the `/rest` prefix, so include it when using
 Non-2xx responses become `*devlake.APIError`, which carries DevLake's error
 message and causes; `errors.Is(err, devlake.ErrNotFound)` works for 404s.
 
+Timestamps in generated models are strings (DevLake mixes formats); use
+`devlake.ParseTime` to turn them into `time.Time`.
+
+## Testing
+
+```sh
+make test                                   # unit tests, no DevLake needed
+make devlake-up && make test-integration    # DevLake + PostgreSQL in docker compose
+make devlake-down
+```
+
+The integration suite (`integration/`, build tag `integration`) runs against
+the DevLake version in `spec/DEVLAKE_VERSION` on PostgreSQL. It covers health
+endpoints, project lifecycle, connection CRUD for Jira, GitLab, SonarQube and
+GitHub, API key auth on `/rest`, and a full webhook pipeline: connection,
+project, blueprint, pushed deployment and incident, trigger, wait for the
+pipeline to complete. CI runs it on every PR.
+
 ## Versioning
 
 The client targets the latest DevLake release, including pre-releases, since
@@ -75,7 +93,6 @@ client versions will follow DevLake's version numbers.
 ```sh
 make spec DEVLAKE_VERSION=v1.0.3-beta19  # regenerate spec/swagger.json from DevLake
 make generate                            # normalize spec + regenerate devlakeapi
-make test                                # unit tests
 make lint
 ```
 

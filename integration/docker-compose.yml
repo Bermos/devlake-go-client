@@ -1,0 +1,32 @@
+# Minimal DevLake stack for the integration tests: backend + PostgreSQL.
+# DEVLAKE_VERSION defaults to the version the client was generated from.
+name: devlake-go-client-it
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    environment:
+      POSTGRES_DB: lake
+      POSTGRES_USER: merico
+      POSTGRES_PASSWORD: merico
+      TZ: UTC
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merico -d lake"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  devlake:
+    image: apache/devlake:${DEVLAKE_VERSION:?set DEVLAKE_VERSION}
+    ports:
+      - "${DEVLAKE_PORT:-8080}:8080"
+    environment:
+      DB_URL: postgres://merico:merico@postgres:5432/lake?sslmode=disable
+      # Fixed, test-only secret. Never reuse outside this compose file.
+      ENCRYPTION_SECRET: integrationtestsecretintegrationtestsecretintegrationtestsecret00
+      FORCE_MIGRATION: "true"
+      LOGGING_DIR: /tmp
+      TZ: UTC
+    depends_on:
+      postgres:
+        condition: service_healthy
