@@ -1,0 +1,124 @@
+# Releases the client whenever spec/DEVLAKE_VERSION changes on main (i.e. an
+# update PR was merged), or on demand. The client tag equals the DevLake
+# version it was generated from, e.g. v1.0.3-beta19. Tags with a pre-release
+# suffix are published as GitHub pre-releases.
+#
+# The schedule is a safety net: merges made with the default GITHUB_TOKEN
+# (e.g. auto-merged update PRs) do not trigger push workflows, so a periodic
+# run releases any DevLake version on main that has no tag yet.
+#
+# Automatic releases (push / schedule) only happen when the repository
+# variable AUTO_RELEASE is "true". Manual runs always release.
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths: [spec/DEVLAKE_VERSION]
+  schedule:
+    - cron: "47 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      suffix:
+        description: >-
+          Optional client-only revision for a pre-release target, appended as
+          ".N" (e.g. 1 -> v1.0.3-beta19.1). Leave empty for the plain version.
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name == 'workflow_dispatch' || vars.AUTO_RELEASE == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.check.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          tag="$(cat spec/DEVLAKE_VERSION)"
+          if [ "$MANUAL" = "true" ] || ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$tag is already released"
+          fi
+
+  integration:
+    needs: check
+    if: needs.check.outputs.needed == 'true'
+    uses: ./.github/workflows/integration.yml
+
+  release:
+    needs: integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: version
+        env:
+          SUFFIX: ${{ inputs.suffix }}
+        run: |
+          devlake="$(cat spec/DEVLAKE_VERSION)"
+          tag="$devlake"
+          if [ -n "$SUFFIX" ]; then
+            if ! [[ "$SUFFIX" =~ ^[0-9]+$ ]]; then
+              echo "::error::suffix must be a number"; exit 1
+            fi
+            if [[ "$devlake" != *-* ]]; then
+              echo "::error::client-only revisions are only possible for pre-release DevLake versions (a suffix on $devlake would sort below it in semver)"; exit 1
+            fi
+            tag="$devlake.$SUFFIX"
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::notice::$tag already exists, nothing to release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+          prerelease=false
+          [[ "$tag" == *-* ]] && prerelease=true
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "devlake=$devlake" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Tag and publish release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          DEVLAKE: ${{ steps.version.outputs.devlake }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          flags=(--generate-notes --target "$GITHUB_SHA" --title "$TAG")
+          [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
+          cat > "$RUNNER_TEMP/notes.md" <<NOTES
+          Generated from Apache DevLake \`$DEVLAKE\` and verified against it on PostgreSQL.
+
+          \`\`\`sh
+          go get github.com/${GITHUB_REPOSITORY}@$TAG
+          \`\`\`
+          NOTES
+          gh release create "$TAG" "${flags[@]}" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Warm the Go module proxy
+        if: steps.version.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          module="$(go mod edit -json | jq -r .Module.Path)"
+          for i in 1 2 3 4 5; do
+            GOPROXY=https://proxy.golang.org GOFLAGS=-mod=mod go list -m "$module@$TAG" && exit 0
+            sleep 20
+          done
+          echo "::warning::proxy.golang.org did not pick up $TAG yet"

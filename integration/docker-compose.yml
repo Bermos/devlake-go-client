@@ -27,6 +27,10 @@ services:
       FORCE_MIGRATION: "true"
       LOGGING_DIR: /tmp
       TZ: UTC
+    # Lets DevLake reach fake remote APIs (e.g. a fake GitLab) served by the
+    # test process on the host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
