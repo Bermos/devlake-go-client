@@ -1,0 +1,39 @@
+# Reusable integration test run against DevLake + PostgreSQL.
+name: Integration
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  GOTOOLCHAIN: auto
+
+jobs:
+  integration:
+    name: DevLake + PostgreSQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Start DevLake
+        run: make devlake-up
+      - name: Integration tests
+        run: make test-integration
+      - name: DevLake logs
+        if: failure()
+        run: DEVLAKE_VERSION=$(cat spec/DEVLAKE_VERSION) docker compose -f integration/docker-compose.yml logs devlake | tail -300
+      - name: Stop DevLake
+        if: always()
+        run: make devlake-down

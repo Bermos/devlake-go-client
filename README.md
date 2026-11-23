@@ -80,13 +80,41 @@ GitHub, API key auth on `/rest`, and a full webhook pipeline: connection,
 project, blueprint, pushed deployment and incident, trigger, wait for the
 pipeline to complete. CI runs it on every PR.
 
-## Versioning
+## Versioning and releases
 
-The client targets the latest DevLake release, including pre-releases, since
-DevLake ships many fixes there long before a stable release. The DevLake
-version a build was generated from is recorded in
-[`spec/DEVLAKE_VERSION`](spec/DEVLAKE_VERSION). Once the setup is verified,
-client versions will follow DevLake's version numbers.
+Client versions equal the DevLake version they were generated from and
+tested against, e.g. `v1.0.3-beta19`. The current one is in
+[`spec/DEVLAKE_VERSION`](spec/DEVLAKE_VERSION).
+
+The client follows the newest DevLake tag, **including pre-releases**,
+because DevLake ships many fixes there long before a stable release. Because
+DevLake keeps cutting `v1.0.3-betaN` after `v1.0.3`, `go get ...@latest`
+resolves to the newest *stable* client; pin a pre-release explicitly:
+
+```sh
+go get github.com/Bermos/devlake-go-client@v1.0.3-beta19
+```
+
+Client-only fixes for a pre-release target are published as
+`<devlake-version>.N` (e.g. `v1.0.3-beta19.1`).
+
+### Automation
+
+| Workflow | What it does |
+| --- | --- |
+| `DevLake update` (daily) | Finds the newest DevLake tag. If it is new and its Docker image is published, regenerates spec and client, runs unit and integration tests against that version, and opens a PR with an API changelog (oasdiff), including a breaking change count. |
+| `Release` (on merge + every 6h) | When `spec/DEVLAKE_VERSION` has no tag yet, runs the integration suite and publishes a tag and GitHub release (pre-release for `-alpha/-beta/-rc`). |
+| `CI` | Build, vet, unit tests, integration tests, generated code drift check, lint. |
+
+Repository settings:
+
+- `AUTO_RELEASE` variable = `true` enables automatic releases (manual
+  "Run workflow" on `Release` always works).
+- `AUTO_MERGE_UPDATES` variable = `true` enables auto-merge on update PRs
+  (also enable "Allow auto-merge").
+- `DEVLAKE_BOT_TOKEN` secret (optional): a fine-grained PAT with contents and
+  pull request write access. PRs opened with the default token do not trigger
+  CI (tests still run inside the update workflow).
 
 ## Development
 
