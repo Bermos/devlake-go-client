@@ -1,0 +1,16 @@
+version: "2"
+linters:
+  default: standard
+  enable:
+    - errorlint
+    - gocritic
+    - misspell
+    - revive
+  exclusions:
+    generated: strict
+    paths:
+      - devlakeapi/devlakeapi.gen.go
+formatters:
+  enable:
+    - gofmt
+    - goimports
