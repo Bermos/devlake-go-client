@@ -32,7 +32,7 @@ if err := devlake.CheckResponse(resp, err); err != nil {
 	return err
 }
 for _, conn := range *resp.JSON200 {
-	fmt.Println(*conn.Name)
+	fmt.Println(conn.Name)
 }
 ```
 
