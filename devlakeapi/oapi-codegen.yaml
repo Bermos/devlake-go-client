@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
+package: devlakeapi
+# output is passed via -o by `make generate`
+generate:
+  models: true
+  client: true
+output-options:
+  skip-prune: true
+  nullable-type: false
+  resolve-type-name-collisions: true
+compatibility:
+  always-prefix-enum-values: true

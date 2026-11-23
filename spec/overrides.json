@@ -1,0 +1,25 @@
+{
+  "get /version": {
+    "responses": {
+      "200": {
+        "description": "OK",
+        "schema": {
+          "type": "object",
+          "properties": {"version": {"type": "string"}}
+        }
+      }
+    }
+  },
+  "get /ready": {
+    "responses": {
+      "200": {"description": "OK", "schema": {"$ref": "#/definitions/shared.ApiBody"}},
+      "500": {"description": "Internal Error", "schema": {"$ref": "#/definitions/shared.ApiBody"}}
+    }
+  },
+  "get /health": {
+    "responses": {
+      "200": {"description": "OK", "schema": {"$ref": "#/definitions/shared.ApiBody"}},
+      "500": {"description": "Internal Error", "schema": {"$ref": "#/definitions/shared.ApiBody"}}
+    }
+  }
+}
