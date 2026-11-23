@@ -38,6 +38,8 @@ type Client struct {
 	api     *devlakeapi.ClientWithResponses
 	logger  *slog.Logger
 	poll    time.Duration
+	doer    HTTPDoer
+	editors []RequestEditorFn
 }
 
 type config struct {
@@ -162,9 +164,8 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 		return nil
 	}}, cfg.editors...)
 
-	apiOpts := []devlakeapi.ClientOption{
-		devlakeapi.WithHTTPClient(&loggingDoer{next: cfg.httpClient, logger: cfg.logger}),
-	}
+	doer := &loggingDoer{next: cfg.httpClient, logger: cfg.logger}
+	apiOpts := []devlakeapi.ClientOption{devlakeapi.WithHTTPClient(doer)}
 	for _, e := range editors {
 		apiOpts = append(apiOpts, devlakeapi.WithRequestEditorFn(e))
 	}
@@ -172,7 +173,14 @@ func New(baseURL string, opts ...Option) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("devlake: %w", err)
 	}
-	return &Client{baseURL: base, api: api, logger: cfg.logger, poll: cfg.poll}, nil
+	return &Client{
+		baseURL: base,
+		api:     api,
+		logger:  cfg.logger,
+		poll:    cfg.poll,
+		doer:    doer,
+		editors: editors,
+	}, nil
 }
 
 // API returns the generated low-level client, which covers every endpoint in

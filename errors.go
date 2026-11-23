@@ -1,7 +1,6 @@
 package devlake
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -60,20 +59,7 @@ func CheckResponse(resp response, err error) error {
 	if resp == nil {
 		return errors.New("devlake: nil response")
 	}
-	code := resp.StatusCode()
-	if code >= 200 && code < 300 {
-		return nil
-	}
-	apiErr := &APIError{StatusCode: code, Body: bodyOf(resp)}
-	var env struct {
-		Message string   `json:"message"`
-		Causes  []string `json:"causes"`
-	}
-	if json.Unmarshal(apiErr.Body, &env) == nil {
-		apiErr.Message = env.Message
-		apiErr.Causes = env.Causes
-	}
-	return apiErr
+	return checkStatus(resp.StatusCode(), bodyOf(resp))
 }
 
 // bodyOf extracts the raw Body field every generated response type carries.

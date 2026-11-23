@@ -36,6 +36,37 @@ for _, conn := range *resp.JSON200 {
 }
 ```
 
+### Convenience helpers
+
+The `Client` wraps DevLake's core workflows so you don't have to string
+together blueprints, scopes and pipelines by hand.
+
+**For users (setting up data sources and projects)**
+
+| Helper | What it does |
+| --- | --- |
+| `CreateGitLabConnection`, `CreateJiraConnection`, `CreateSonarQubeConnection`, `CreateGitHubConnection`, `CreateWebhookConnection` | Typed connection setup with sensible defaults |
+| `ListConnections`, `FindConnection`, `GetConnection`, `UpdateConnection`, `DeleteConnection`, `TestConnection`, `CreateConnection` | Work with any plugin's connections |
+| `SearchRemoteScopes`, `AddScopes`, `AddScopesByName`, `ListScopes` | Find repos, boards and projects on the remote system and register them, e.g. `AddScopesByName(ctx, PluginGitLab, id, opts, "group/repo")` |
+| `EnsureProject` | Idempotent create or update of a project (DORA on by default, schedule) |
+| `ConnectProject`, `DisconnectProject` | Add or remove connections and scopes on the project's blueprint without clobbering existing ones |
+| `TriggerProject`, `SyncProject` | Start a sync, optionally full or without collectors, and wait for it |
+| `Webhook(id).Deployment / Incident / CloseIncident` | Push DORA data from CI/CD and incident tooling |
+
+**For operators**
+
+| Helper | What it does |
+| --- | --- |
+| `Status` | Version, readiness, running pipelines, recent failures |
+| `ProjectStatuses`, `UnhealthyProjects` | Flags projects with no connections, no successful sync, a failed last sync, or stale data |
+| `ListPipelines`, `GetPipeline`, `WaitForPipeline`, `CancelPipeline` | Pipeline control |
+| `RerunPipeline`, `RetryFailedPipelines`, `FailedTasks`, `RerunTask` | Recover after outages or credential fixes |
+| `DownloadPipelineLogs` | Fetch the log archive of a pipeline |
+| `Do` | Raw call to any endpoint, using the client's auth, logging and errors |
+
+See [`example_test.go`](example_test.go) for complete onboarding,
+deployment reporting and operator report examples.
+
 ### Base URL and authentication
 
 | Setup | Base URL | Option |
